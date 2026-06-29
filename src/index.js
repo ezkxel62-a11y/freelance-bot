@@ -23,6 +23,24 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 app.use(express.json());
 
+// ===== SET WEBHOOK (HANYA 1 KALI SAAT STARTUP) =====
+const WEBHOOK_URL = process.env.VERCEL_URL 
+  ? `https://${process.env.VERCEL_URL}/webhook`
+  : null;
+
+if (WEBHOOK_URL) {
+  try {
+    await bot.telegram.setWebhook(WEBHOOK_URL);
+    console.log(`✅ Webhook set ke: ${WEBHOOK_URL}`);
+  } catch (err) {
+    console.error('❌ Gagal set webhook:', err.message);
+  }
+} else {
+  // Mode polling untuk lokal
+  await bot.launch();
+  console.log('🚀 Bot running with polling mode');
+}
+
 // ===== LOGGING SEMUA REQUEST =====
 app.use((req, res, next) => {
   console.log(`📥 [${new Date().toISOString()}] ${req.method} ${req.path}`);
