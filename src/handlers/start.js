@@ -1,14 +1,61 @@
 import { getOrCreateUser } from '../models/userModel.js';
+
 export async function startHandler(ctx) {
   const id = ctx.from.id.toString();
-  let user = await getOrCreateUser(id);
-  if (!user.nama) {
-    await ctx.replyWithMarkdown('*Selamat datang di FRELANCE JAWAB SOAL!* \n\nKami adalah platform freelance pengisi soal. \n\nSilakan isi data diri: \n1. Nama lengkap \n2. Nomor rekening (Bank/E-Wallet) \n\nKetik: *nama|nomor_rekening*');
+  const user = await getOrCreateUser(id);
+  
+  // Jika user NULL → minta data diri
+  if (!user || !user.nama) {
+    await ctx.replyWithMarkdown(
+      '*Selamat datang di FREELANCE JAWAB SOAL!*\n\n' +
+      'Kami adalah platform freelance pengisi soal.\n\n' +
+      'Silakan isi data diri:\n' +
+      '1. Nama lengkap\n' +
+      '2. Nomor rekening (Bank/E-Wallet)\n\n' +
+      'Ketik: *nama|nomor_rekening*'
+    );
     return;
   }
-  await ctx.replyWithMarkdown();
-  showMenu(ctx);
+  
+  // User sudah ada → tampilkan menu
+  await ctx.replyWithMarkdown(
+    `Halo *${user.nama}*, selamat kembali! \nSaldo: Rp ${user.saldo.toLocaleString()}`
+  );
+  await showMenu(ctx);
 }
+
+export async function inputDataHandler(ctx) {
+  const id = ctx.from.id.toString();
+  const text = ctx.message.text;
+  
+  if (!text || !text.includes('|')) {
+    await ctx.reply('❌ Format salah. Gunakan: Nama|Nomor Rekening');
+    return;
+  }
+  
+  const [nama, rekening] = text.split('|');
+  if (!nama.trim() || !rekening.trim()) {
+    await ctx.reply('❌ Nama dan rekening tidak boleh kosong.');
+    return;
+  }
+  
+  // Simpan ke database dan ambil data user yang sudah tersimpan
+  const user = await getOrCreateUser(id, nama.trim(), rekening.trim());
+  
+  if (!user) {
+    await ctx.reply('❌ Gagal menyimpan data. Coba lagi.');
+    return;
+  }
+  
+  await ctx.replyWithMarkdown('✅ *Data tersimpan!*');
+  
+  // Tampilkan menu utama LANGSUNG
+  await ctx.replyWithMarkdown(
+    `Halo *${user.nama}*, selamat bergabung di FRELANCE JAWAB SOAL!\nSaldo: Rp ${user.saldo.toLocaleString()}`
+  );
+  await showMenu(ctx);
+}
+
 async function showMenu(ctx) {
   await ctx.replyWithMarkdown('📋 *Menu Utama*', {
     reply_markup: {
@@ -20,15 +67,4 @@ async function showMenu(ctx) {
       ]
     }
   });
-}
-export async function inputDataHandler(ctx) {
-  const id = ctx.from.id.toString();
-  const [nama, rekening] = ctx.message.text.split('|');
-  if (!nama || !rekening) {
-    await ctx.reply('Format salah. Gunakan: Nama|Nomor Rekening');
-    return;
-  }
-  await getOrCreateUser(id, nama.trim(), rekening.trim());
-  await ctx.reply('✅ Data tersimpan!');
-  await startHandler(ctx);
 }

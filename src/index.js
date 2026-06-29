@@ -63,13 +63,10 @@ bot.on('text', async (ctx) => {
   console.log(`💬 Text: ${text}`);
   
   if (text.includes('|') && !text.startsWith('topup|')) {
-    return inputDataHandler(ctx);
+    return inputDataHandler(ctx); // ← ini akan langsung tampilkan menu
   }
   if (text.startsWith('topup|')) {
     return kirimBuktiHandler(ctx);
-  }
-  if (ctx.session?.komplain) {
-    return simpanKomplain(ctx);
   }
 });
 
