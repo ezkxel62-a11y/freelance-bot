@@ -23,37 +23,27 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 app.use(express.json());
 
-// ===== HANYA SET WEBHOOK 1 KALI =====
-// JANGAN panggil di dalam handler request!
-const WEBHOOK_URL = process.env.VERCEL_URL 
-  ? `https://${process.env.VERCEL_URL}/webhook`
-  : null;
+// ===== LOGGING SEMUA REQUEST =====
+app.use((req, res, next) => {
+  console.log(`📥 [${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
 
-if (WEBHOOK_URL) {
-  // Set webhook sekali saat startup (bukan per request)
-  try {
-    await bot.telegram.setWebhook(WEBHOOK_URL);
-    console.log(`✅ Webhook set ke: ${WEBHOOK_URL}`);
-  } catch (err) {
-    console.error('❌ Gagal set webhook:', err.message);
-  }
-} else {
-  // Mode polling untuk lokal
-  await bot.launch();
-  console.log('🚀 Bot running with polling');
-}
-
-// Middleware logging
+// Middleware logging bot
 bot.use(async (ctx, next) => {
-  console.log(`📩 [${new Date().toISOString()}] ${ctx.from?.id}`);
+  console.log(`📩 [${new Date().toISOString()}] From: ${ctx.from?.id} | Update: ${ctx.updateType}`);
   await next();
 });
 
+// Handler start
 bot.start(startHandler);
 
+// Handler text
 bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   if (!text) return;
+  console.log(`💬 Text: ${text}`);
+  
   if (text.includes('|') && !text.startsWith('topup|')) {
     return inputDataHandler(ctx);
   }
@@ -65,6 +55,7 @@ bot.on('text', async (ctx) => {
   }
 });
 
+// Action handlers
 bot.action('mulai_soal', mulaiSoal);
 bot.action(/jawab_\d+_\d+/, jawabHandler);
 bot.action('profil', profilHandler);
@@ -102,17 +93,30 @@ bot.use(async (ctx, next) => {
 
 // ===== ENDPOINT WEBHOOK =====
 app.post('/webhook', async (req, res) => {
+  console.log('📨 Webhook received');
   try {
     await bot.handleUpdate(req.body);
+    console.log('✅ Update handled');
     res.status(200).send('OK');
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('❌ Webhook error:', error.message);
     res.status(500).send('Error');
   }
 });
 
+// ===== HEALTH CHECK =====
 app.get('/', (req, res) => {
   res.status(200).send('Bot is running!');
+});
+
+// ===== QRIS ROUTE =====
+app.get('/qris-aurora.png', (req, res) => {
+  res.sendFile('qris-aurora.png', { root: './public' }, (err) => {
+    if (err) {
+      console.error('❌ QRIS not found:', err.message);
+      res.status(404).send('QRIS not found');
+    }
+  });
 });
 
 export default app;
