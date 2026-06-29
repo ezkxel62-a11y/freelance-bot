@@ -5,7 +5,7 @@ import { startHandler, inputDataHandler } from './handlers/start.js';
 import { mulaiSoal, jawabHandler } from './handlers/soal.js';
 import { profilHandler } from './handlers/profil.js';
 import { tarikHandler } from './handlers/tarik.js';
-import { topupHandler, kirimBuktiHandler } from './handlers/topup.js';
+import { topupHandler, kirimBuktiHandler, approveTopupHandler } from './handlers/topup.js';
 import { komplainHandler, simpanKomplain } from './handlers/komplain.js';
 
 dotenv.config();
@@ -63,10 +63,13 @@ bot.on('text', async (ctx) => {
   console.log(`💬 Text: ${text}`);
   
   if (text.includes('|') && !text.startsWith('topup|')) {
-    return inputDataHandler(ctx); // ← ini akan langsung tampilkan menu
+    return inputDataHandler(ctx);
   }
   if (text.startsWith('topup|')) {
     return kirimBuktiHandler(ctx);
+  }
+  if (ctx.session?.komplain) {
+    return simpanKomplain(ctx);
   }
 });
 
@@ -77,6 +80,10 @@ bot.action('profil', profilHandler);
 bot.action('tarik', tarikHandler);
 bot.action('topup', topupHandler);
 bot.action('komplain', komplainHandler);
+
+// ===== APPROVE / REJECT TOPUP =====
+bot.action(/approve_topup_\d+/, approveTopupHandler);
+bot.action(/reject_topup_\d+/, approveTopupHandler);
 
 bot.action('syarat', async (ctx) => {
   await ctx.replyWithMarkdown(
