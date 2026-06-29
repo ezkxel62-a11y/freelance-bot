@@ -1,9 +1,8 @@
 import { supabase } from '../db/supabaseClient.js';
 
 export async function topupHandler(ctx) {
-  const id = ctx.from.id.toString();
+  await ctx.answerCbQuery(); // ← TAMBAHKAN INI
   
-  // URL QRIS yang benar (pakai domain Vercel)
   const qrisUrl = 'https://freelance-bot-pied.vercel.app/qris-aurora.png';
   
   await ctx.replyWithPhoto(qrisUrl, {
@@ -13,7 +12,6 @@ export async function topupHandler(ctx) {
 }
 
 export async function kirimBuktiHandler(ctx) {
-  const id = ctx.from.id.toString();
   const text = ctx.message.text;
   if (!text || !text.startsWith('topup|')) return;
   
@@ -25,18 +23,17 @@ export async function kirimBuktiHandler(ctx) {
   }
   
   await supabase.from('topup').insert({
-    telegram_id: id,
+    telegram_id: ctx.from.id.toString(),
     jumlah: parseInt(jumlah),
     bukti_url: foto
   });
   
   await ctx.reply('✅ Bukti terkirim, menunggu verifikasi.');
   
-  // Kirim notifikasi ke admin
   try {
     await ctx.telegram.sendMessage(
       process.env.ADMIN_ID,
-      `💰 *TOP UP REQUEST*\nDari: ${ctx.from.id}\nJumlah: Rp ${parseInt(jumlah).toLocaleString()}\nBukti: (cek database)`,
+      `💰 *TOP UP REQUEST*\nDari: ${ctx.from.id}\nJumlah: Rp ${parseInt(jumlah).toLocaleString()}`,
       { parse_mode: 'Markdown' }
     );
   } catch (error) {

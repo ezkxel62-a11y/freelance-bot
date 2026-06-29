@@ -3,9 +3,11 @@ import { saldoBenar, saldoSalah } from '../utils/saldoAcak.js';
 import { updateSaldo, getSaldo } from '../models/userModel.js';
 import { supabase } from '../db/supabaseClient.js';
 
-const sesiSoal = new Map(); // telegram_id -> { index, soalList }
+const sesiSoal = new Map();
 
 export async function mulaiSoal(ctx) {
+  await ctx.answerCbQuery(); // ← TAMBAHKAN INI
+  
   const id = ctx.from.id.toString();
   const saldo = await getSaldo(id);
   if (saldo >= 50000) {
@@ -21,7 +23,6 @@ async function kirimSoal(ctx, id) {
   const sesi = sesiSoal.get(id);
   if (!sesi || sesi.index >= sesi.soalList.length) {
     await ctx.reply('🎉 Selesai! Saldo bertambah.');
-    await ctx.answerCbQuery();
     return;
   }
   const soal = sesi.soalList[sesi.index];
@@ -32,16 +33,24 @@ async function kirimSoal(ctx, id) {
 }
 
 export async function jawabHandler(ctx) {
+  await ctx.answerCbQuery(); // ← TAMBAHKAN INI
+  
   const id = ctx.from.id.toString();
-  const data = ctx.callbackQuery.data; // jawab_2_1
+  const data = ctx.callbackQuery.data;
   const [, soalId, jawabanIdx] = data.split('_').map(Number);
   const sesi = sesiSoal.get(id);
-  if (!sesi) return ctx.answerCbQuery('Sesi habis, mulai ulang.');
+  if (!sesi) {
+    await ctx.reply('Sesi habis, mulai ulang.');
+    return;
+  }
   const soal = sesi.soalList.find(s => s.id === soalId);
+  if (!soal) {
+    await ctx.reply('Soal tidak ditemukan.');
+    return;
+  }
   const benar = (soal.jawaban === jawabanIdx);
   const poin = benar ? saldoBenar() : 1000;
   await updateSaldo(id, poin);
-  // Simpan riwayat
   await supabase.from('jawaban_user').insert({
     telegram_id: id,
     soal_id: soalId,
@@ -49,7 +58,12 @@ export async function jawabHandler(ctx) {
     benar,
     poin_dapat: poin
   });
-  await ctx.answerCbQuery(benar ? '✅ Benar! +Rp '+poin : '❌ Salah +Rp 1.000');
+  
+  // Kirim notifikasi jawaban
+  await ctx.replyWithMarkdown(
+    benar ? `✅ Benar! +Rp ${poin.toLocaleString()}` : `❌ Salah +Rp 1.000`
+  );
+  
   sesi.index++;
   await kirimSoal(ctx, id);
 }

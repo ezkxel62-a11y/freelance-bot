@@ -4,7 +4,6 @@ export async function startHandler(ctx) {
   const id = ctx.from.id.toString();
   const user = await getOrCreateUser(id);
   
-  // Jika user NULL → minta data diri
   if (!user || !user.nama) {
     await ctx.replyWithMarkdown(
       '*Selamat datang di FREELANCE JAWAB SOAL!*\n\n' +
@@ -17,7 +16,6 @@ export async function startHandler(ctx) {
     return;
   }
   
-  // User sudah ada → tampilkan menu
   await ctx.replyWithMarkdown(
     `Halo *${user.nama}*, selamat kembali! \nSaldo: Rp ${user.saldo.toLocaleString()}`
   );
@@ -39,7 +37,6 @@ export async function inputDataHandler(ctx) {
     return;
   }
   
-  // Simpan ke database dan ambil data user yang sudah tersimpan
   const user = await getOrCreateUser(id, nama.trim(), rekening.trim());
   
   if (!user) {
@@ -49,7 +46,6 @@ export async function inputDataHandler(ctx) {
   
   await ctx.replyWithMarkdown('✅ *Data tersimpan!*');
   
-  // Tampilkan menu utama LANGSUNG
   await ctx.replyWithMarkdown(
     `Halo *${user.nama}*, selamat bergabung di FRELANCE JAWAB SOAL!\nSaldo: Rp ${user.saldo.toLocaleString()}`
   );
