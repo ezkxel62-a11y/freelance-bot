@@ -8,56 +8,63 @@ import { tarikHandler } from './handlers/tarik.js';
 import { topupHandler, kirimBuktiHandler } from './handlers/topup.js';
 import { komplainHandler, simpanKomplain } from './handlers/komplain.js';
 
-// Load environment variables (aman untuk lokal & Vercel)
 dotenv.config();
 
-// Validasi environment variables penting
 if (!process.env.BOT_TOKEN) {
-  console.error('❌ BOT_TOKEN tidak ditemukan di environment');
+  console.error('❌ BOT_TOKEN tidak ditemukan');
   process.exit(1);
 }
 if (!process.env.ADMIN_ID) {
-  console.error('❌ ADMIN_ID tidak ditemukan di environment');
+  console.error('❌ ADMIN_ID tidak ditemukan');
   process.exit(1);
 }
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
-
-// Middleware untuk parsing JSON (wajib untuk webhook)
 app.use(express.json());
 
-// Middleware untuk logging (opsional tapi bagus)
+// ===== HANYA SET WEBHOOK 1 KALI =====
+// JANGAN panggil di dalam handler request!
+const WEBHOOK_URL = process.env.VERCEL_URL 
+  ? `https://${process.env.VERCEL_URL}/webhook`
+  : null;
+
+if (WEBHOOK_URL) {
+  // Set webhook sekali saat startup (bukan per request)
+  try {
+    await bot.telegram.setWebhook(WEBHOOK_URL);
+    console.log(`✅ Webhook set ke: ${WEBHOOK_URL}`);
+  } catch (err) {
+    console.error('❌ Gagal set webhook:', err.message);
+  }
+} else {
+  // Mode polling untuk lokal
+  await bot.launch();
+  console.log('🚀 Bot running with polling');
+}
+
+// Middleware logging
 bot.use(async (ctx, next) => {
-  console.log(`📩 [${new Date().toISOString()}] ${ctx.from?.id}: ${ctx.message?.text || ctx.callbackQuery?.data || 'action'}`);
+  console.log(`📩 [${new Date().toISOString()}] ${ctx.from?.id}`);
   await next();
 });
 
-// Handler start
 bot.start(startHandler);
 
-// Handler text
 bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   if (!text) return;
-  
-  // Input data diri (format: Nama|Nomor Rekening)
   if (text.includes('|') && !text.startsWith('topup|')) {
     return inputDataHandler(ctx);
   }
-  
-  // Top up dengan bukti transfer
   if (text.startsWith('topup|')) {
     return kirimBuktiHandler(ctx);
   }
-  
-  // Komplain
   if (ctx.session?.komplain) {
     return simpanKomplain(ctx);
   }
 });
 
-// Action handlers
 bot.action('mulai_soal', mulaiSoal);
 bot.action(/jawab_\d+_\d+/, jawabHandler);
 bot.action('profil', profilHandler);
@@ -65,7 +72,6 @@ bot.action('tarik', tarikHandler);
 bot.action('topup', topupHandler);
 bot.action('komplain', komplainHandler);
 
-// Syarat & Ketentuan
 bot.action('syarat', async (ctx) => {
   await ctx.replyWithMarkdown(
     '📜 *Syarat & Ketentuan FRELANCE JAWAB SOAL*\n\n' +
@@ -78,12 +84,10 @@ bot.action('syarat', async (ctx) => {
   );
 });
 
-// Middleware untuk forward notifikasi ke admin
+// Forward komplain ke admin
 bot.use(async (ctx, next) => {
   await next();
-  
-  // Forward komplain ke admin
-  if (ctx.message?.text && ctx.message.text.toLowerCase().includes('komplain')) {
+  if (ctx.message?.text?.toLowerCase().includes('komplain')) {
     try {
       await bot.telegram.sendMessage(
         process.env.ADMIN_ID,
@@ -91,47 +95,29 @@ bot.use(async (ctx, next) => {
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
-      console.error('Gagal kirim notifikasi komplain:', error.message);
+      console.error('Gagal kirim notifikasi:', error.message);
     }
   }
 });
 
-// ========== PERBAIKAN UTAMA ==========
-// Menangani webhook untuk Vercel
-if (process.env.VERCEL_URL) {
-  // Mode Webhook (Vercel)
-  const WEBHOOK_URL = `https://${process.env.VERCEL_URL}/webhook`;
-  
-  // Set webhook ke Telegram
-  await bot.telegram.setWebhook(WEBHOOK_URL);
-  console.log(`✅ Webhook set ke: ${WEBHOOK_URL}`);
-  
-  // Endpoint webhook
-  app.post('/webhook', async (req, res) => {
-    try {
-      await bot.handleUpdate(req.body);
-      res.status(200).send('OK');
-    } catch (error) {
-      console.error('Webhook error:', error);
-      res.status(500).send('Error');
-    }
-  });
-  
-  // Health check untuk Vercel
-  app.get('/', (req, res) => {
-    res.status(200).send('Bot is running!');
-  });
-  
-} else {
-  // Mode Polling (lokal)
-  await bot.launch();
-  console.log('🚀 Bot running with polling mode');
-}
+// ===== ENDPOINT WEBHOOK =====
+app.post('/webhook', async (req, res) => {
+  try {
+    await bot.handleUpdate(req.body);
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).send('Error');
+  }
+});
 
-// Export untuk Vercel
+app.get('/', (req, res) => {
+  res.status(200).send('Bot is running!');
+});
+
 export default app;
 
-// Jalankan lokal jika bukan di Vercel
+// Jalankan lokal
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL_URL) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
